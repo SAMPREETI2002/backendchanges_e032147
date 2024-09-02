@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer{
+  customerId Int @id 
+  customerName String
+  customerCurrPlan Int
+  customerMail String
+  customerPhone String
+  customerType String
+  invoiceList Invoice[]
+}
+
+model Plan {
+  planId       Int          @id 
+  planName     String
+  ratePerUnit  Float
+  prepaidPlans PrepaidPlan[]
+  postpaidPlans PostpaidPlan[]
+  invoices Invoice[]
+}
+
+model PrepaidPlan {
+  id             Int     @id @default(autoincrement())
+  planId         Int
+  unitsAvailable   Float
+  prepaidBalance Float
+  plan           Plan    @relation(fields: [planId], references: [planId])
+}
+
+model PostpaidPlan {
+  id          Int     @id @default(autoincrement())
+  planId      Int
+  unitsUsed   Float
+  billingCycle String
+  plan        Plan    @relation(fields: [planId], references: [planId])
+}
+
+model Invoice {
+  invoiceId    Int       @id 
+  customerName String
+  customerId Int 
+  planId       Int
+  units    Int
+  date         DateTime
+  amount       Float
+  planType     PlanType
+  customer Customer @relation(fields:[customerId],references:[customerId])
+  plan     Plan @relation(fields: [planId], references: [planId])
+}
+
+enum PlanType {
+  PREPAID
+  POSTPAID
+}
+
+

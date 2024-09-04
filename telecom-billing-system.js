@@ -60,17 +60,17 @@ class Plan {
   }
 }
 
+
+
 // PrepaidPlan subclass
 class PrepaidPlan extends Plan {
   constructor(planName, ratePerUnit, prepaidBalance, unitsAvailable) {
-    super(planName, ratePerUnit);
+    super(planName, ratePerUnit, "PREPAID");
     this.prepaidBalance = prepaidBalance;
-    this.planType = "prepaid";
-    this.unitsAvailable = unitsAvailable
+    this.unitsAvailable = unitsAvailable;
   }
 
   deductBalance(units) {
-    units = this.unitsAvailable
     const charge = this.calculateCharge(units);
     if (this.prepaidBalance >= charge) {
       this.prepaidBalance -= charge;
@@ -81,43 +81,46 @@ class PrepaidPlan extends Plan {
   }
 }
 
+
 // PostpaidPlan subclass
 class PostpaidPlan extends Plan {
-  constructor(planName, ratePerUnit, billingCycle,unitsUsed=0) {
-    super(planName, ratePerUnit);
+  constructor(planName, ratePerUnit, billingCycle, unitsUsed = 0) {
+    super(planName, ratePerUnit, "POSTPAID");
     this.billingCycle = billingCycle;
-    this.planType = "postpaid";
-    this.unitsUsed = unitsUsed
+    this.unitsUsed = unitsUsed;
   }
 
   generateBill(units) {
-    units = this.unitsUsed
     return this.calculateCharge(units);
   }
 }
 
+
 // Invoice class
 class Invoice {
-    constructor(customerName, customerId, plan, units = 0, date) {
-        this.invoiceId = Math.floor(100000000 + Math.random() * 900000000);
-        this.customerId = customerId;
-        this.customerName = customerName;
-        this.plan = plan;
-        this.units = units;
-        this.date = date;
-        this.amount = this.calculateAmount();
-    }
+  constructor(customerName, customerId, plan, units = 0, date, planType, amount) {
+    this.invoiceId = Math.floor(100000000 + Math.random() * 900000000);
+    this.customerId = customerId;
+    this.customerName = customerName;
+    this.plan = plan;
+    this.units = units;
+    this.date = date;
+    this.planType = planType;
+    this.amount = amount || this.calculateAmount();
+  }
 
-    calculateAmount() {
-        if (this.plan instanceof PrepaidPlan) {
-            return this.plan.deductBalance(this.units);
-        } else if (this.plan instanceof PostpaidPlan) {
-            return this.plan.generateBill(this.units);
-        } else {
-            throw new Error("Invalid plan type");
-        }
+  calculateAmount() {
+    if (this.planType === "PREPAID") {
+      return this.plan.deductBalance(this.units);
+    } else if (this.planType === "POSTPAID") {
+      return this.plan.generateBill(this.units);
+    } else {
+      throw new Error("Invalid plan type");
     }
+  }
 }
+
+
 
 
 // Example usage

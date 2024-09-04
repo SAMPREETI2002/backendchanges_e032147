@@ -71,8 +71,11 @@ app.post('/register', async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 8);
 
   try {
-    const newCustomer = await prisma.customer.create({
+    let newCustomer = new Customer(name,email,phone,password)
+    newCustomer = await prisma.customer.create({
       data: {
+        customerId:newCustomer.customerId,
+        customerCurrPlan:0,
         customerName: name,
         customerMail: email,
         customerPhone: phone,
@@ -86,45 +89,49 @@ app.post('/register', async (req, res) => {
 
     res.status(201).send({ auth: true, token });
   } catch (error) {
+    console.error('Error registering user:', error);
     res.status(500).send('There was a problem registering the user.');
   }
 });
+
 
 let loggedInCustomers = [];
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-
+  
   if (!email || !password) {
     return res.status(400).send('Email and password are required.');
   }
-
+  
   try {
-    const customer = await prisma.customer.findUnique({
+    const customer = await prisma.customer.findFirst({
       where: { customerMail: email },
     });
-
+    
     if (!customer) {
       return res.status(404).send('No user found.');
     }
-
+    
     const passwordIsValid = bcrypt.compareSync(password, customer.password);
-
+    
     if (!passwordIsValid) {
       return res.status(401).send({ auth: false, token: null });
     }
-
+    
     const token = jwt.sign({ id: customer.customerId }, SECRET_KEY, {
       expiresIn: 86400, // 24 hours
     });
-
+    
     loggedInCustomers.push(customer.customerId);
-
+    
+    console.log(loggedInCustomers[0])
     res.status(200).send({ auth: true, token });
   } catch (error) {
     res.status(500).send('There was a problem logging in.');
   }
 });
+
 
 // app.get('/viewInvoice',(req,res)=>{
 //     const customerId = req.body
@@ -425,7 +432,6 @@ app.post("/admin/addCustomer", async (req, res) => {
       customerCurrPlan: 0,
       customerMail: customerMail,
       customerPhone: customerPhone,
-      customerType: "N/A",
       // invoiceList:{
       //     create: invoicesData
       // }

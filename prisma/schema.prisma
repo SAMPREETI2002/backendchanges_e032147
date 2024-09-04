@@ -20,7 +20,6 @@ model Customer{
   customerCurrPlan Int
   customerMail String
   customerPhone String
-  customerType String
   invoiceList Invoice[]
 }
 

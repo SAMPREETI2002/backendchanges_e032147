@@ -46,51 +46,84 @@ const custIds = dummyCustomers.forEach((customer) => {
 });
 
 function verifyToken(req, res, next) {
-  const token = req.headers["x-access-token"];
+  const token = req.headers['x-access-token'];
   if (!token) {
-    return res.status(403).send("No token provided.");
+    return res.status(403).send('No token provided.');
   }
 
   jwt.verify(token, SECRET_KEY, (err, decoded) => {
     if (err) {
-      return res.status(500).send("Failed to authenticate token.");
+      return res.status(500).send('Failed to authenticate token.');
     }
     req.customerId = decoded.id;
     next();
   });
 }
 
-app.post("/register", (req, res) => {
-  const { name, email, password } = req.body;
 
-  if (!name || !email || !password) {
-    return res
-      .status(400)
-      .send("All fields (name, email, password) are required.");
+app.post('/register', async (req, res) => {
+  const { name, email, password, phone } = req.body;
+
+  if (!name || !email || !password || !phone) {
+    return res.status(400).send('All fields are required.');
   }
 
-  const existingCustomer = Object.values(customers).find(
-    (cust) => cust.email === email
-  );
-  if (existingCustomer) {
-    return res.status(400).send("Email is already in use.");
-  }
-
-  const customerId = uuidv4();
   const hashedPassword = bcrypt.hashSync(password, 8);
 
-  customers[customerId] = {
-    id: customerId,
-    name,
-    email,
-    password: hashedPassword,
-    invoices: [],
-  };
+  try {
+    const newCustomer = await prisma.customer.create({
+      data: {
+        customerName: name,
+        customerMail: email,
+        customerPhone: phone,
+        password: hashedPassword,
+      },
+    });
 
-  res.status(201).send({
-    message: "User registered successfully.",
-    customerId,
-  });
+    const token = jwt.sign({ id: newCustomer.customerId }, SECRET_KEY, {
+      expiresIn: 86400, // 24 hours
+    });
+
+    res.status(201).send({ auth: true, token });
+  } catch (error) {
+    res.status(500).send('There was a problem registering the user.');
+  }
+});
+
+let loggedInCustomers = [];
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).send('Email and password are required.');
+  }
+
+  try {
+    const customer = await prisma.customer.findUnique({
+      where: { customerMail: email },
+    });
+
+    if (!customer) {
+      return res.status(404).send('No user found.');
+    }
+
+    const passwordIsValid = bcrypt.compareSync(password, customer.password);
+
+    if (!passwordIsValid) {
+      return res.status(401).send({ auth: false, token: null });
+    }
+
+    const token = jwt.sign({ id: customer.customerId }, SECRET_KEY, {
+      expiresIn: 86400, // 24 hours
+    });
+
+    loggedInCustomers.push(customer.customerId);
+
+    res.status(200).send({ auth: true, token });
+  } catch (error) {
+    res.status(500).send('There was a problem logging in.');
+  }
 });
 
 // app.get('/viewInvoice',(req,res)=>{
@@ -107,8 +140,8 @@ app.post("/generateInvoice", async (req, res) => {
     const customer = await prisma.customer.findUnique({
       where: { customerId },
     });
-    const planId = customer.customerCurrPlan
-    console.log(planId)
+    const planId = customer.customerCurrPlan;
+    console.log(planId);
     const plan = await prisma.plan.findUnique({
       where: { planId },
       include: {
@@ -130,33 +163,49 @@ app.post("/generateInvoice", async (req, res) => {
     if (plan.prepaidPlans.length > 0) {
       planType = "PREPAID";
       const date = new Date();
-      const invoice = new Invoice(customer.customerName, customer.customerId, plan, plan.prepaidPlans[0].unitsAvailable, date, planType, plan.prepaidPlans[0].prepaidBalance);
+      const invoice = new Invoice(
+        customer.customerName,
+        customer.customerId,
+        plan,
+        plan.prepaidPlans[0].unitsAvailable,
+        date,
+        planType,
+        plan.prepaidPlans[0].prepaidBalance
+      );
       createdInvoice = await prisma.invoice.create({
         data: {
-          invoiceId:invoice.invoiceId,
+          invoiceId: invoice.invoiceId,
           customerName: customer.customerName,
           customerId,
           planId: plan.planId,
-          units:plan.prepaidPlans[0].unitsAvailable,
+          units: plan.prepaidPlans[0].unitsAvailable,
           date,
-          amount:plan.prepaidPlans[0].prepaidBalance,
-          planType
+          amount: plan.prepaidPlans[0].prepaidBalance,
+          planType,
         },
       });
     } else if (plan.postpaidPlans.length > 0) {
       planType = "POSTPAID";
       const date = new Date();
-    const invoice = new Invoice(customer.customerName, customer.customerId, plan, plan.postpaidPlans[0].unitsUsed, date, planType, (plan.postpaidPlans[0].unitsUsed)*(plan.ratePerUnit));
-    createdInvoice = await prisma.invoice.create({
+      const invoice = new Invoice(
+        customer.customerName,
+        customer.customerId,
+        plan,
+        plan.postpaidPlans[0].unitsUsed,
+        date,
+        planType,
+        plan.postpaidPlans[0].unitsUsed * plan.ratePerUnit
+      );
+      createdInvoice = await prisma.invoice.create({
         data: {
-          invoiceId:invoice.invoiceId,
+          invoiceId: invoice.invoiceId,
           customerName: customer.customerName,
           customerId,
           planId: plan.planId,
-          units:plan.postpaidPlans[0].unitsUsed,
+          units: plan.postpaidPlans[0].unitsUsed,
           date,
-          amount:(plan.postpaidPlans[0].unitsUsed)*(plan.ratePerUnit),
-          planType
+          amount: plan.postpaidPlans[0].unitsUsed * plan.ratePerUnit,
+          planType,
         },
       });
     } else {
@@ -178,13 +227,15 @@ app.post("/generateInvoice", async (req, res) => {
     //   },
     // });
 
-    res.send({ message: "Invoice generated successfully.", invoice: createdInvoice });
+    res.send({
+      message: "Invoice generated successfully.",
+      invoice: createdInvoice,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send("Internal server error.");
   }
 });
-
 
 app.post("/buyPlan", async (req, res) => {
   const { customerId, planName, planType } = req.body;
@@ -220,7 +271,7 @@ app.post("/buyPlan", async (req, res) => {
       }
     } else if (planType === "POSTPAID") {
       // Fetch the plan from the database
-      console.log("ASDASDASD")
+      console.log("ASDASDASD");
       plan = await prisma.plan.findFirst({
         where: { planName: planName },
         include: {
@@ -228,7 +279,6 @@ app.post("/buyPlan", async (req, res) => {
           postpaidPlans: true,
         },
       });
-
 
       if (plan && plan.postpaidPlans.length > 0) {
         planInstance = new PostpaidPlan(
@@ -257,11 +307,11 @@ app.post("/buyPlan", async (req, res) => {
 
     if (planType === "PREPAID") {
       invoice.units = planInstance.unitsAvailable;
-      console.log(planInstance.prepaidBalance)
+      console.log(planInstance.prepaidBalance);
       // payment gateway integration to get prepaid balance
       invoice = await prisma.invoice.create({
         data: {
-          invoiceId:invoice.invoiceId,
+          invoiceId: invoice.invoiceId,
           customerName: customer.customerName,
           customerId: customer.customerId,
           planId: plan.planId,
@@ -276,13 +326,13 @@ app.post("/buyPlan", async (req, res) => {
 
       invoice = await prisma.invoice.create({
         data: {
-          invoiceId:invoice.invoiceId,
+          invoiceId: invoice.invoiceId,
           customerName: customer.customerName,
           customerId: customer.customerId,
           planId: plan.planId,
           units: invoice.units,
           date: now,
-          amount:0,
+          amount: 0,
           planType: planType,
         },
       });
@@ -290,11 +340,8 @@ app.post("/buyPlan", async (req, res) => {
 
     await prisma.customer.update({
       where: { customerId: customerId },
-      data: { customerCurrPlan: plan.planId,
-              customerType:plan.planType
-       }, // Assuming 'plan.planId' is the unique identifier for the plan
+      data: { customerCurrPlan: plan.planId, customerType: plan.planType }, // Assuming 'plan.planId' is the unique identifier for the plan
     });
-
 
     res.status(201).json({ customer, plan, invoice });
   } catch (error) {
@@ -327,7 +374,7 @@ app.post("/admin/addPlan", async (req, res) => {
     const prepaidPlan = await prisma.prepaidPlan.create({
       data: {
         planId: plan.planId,
-        unitsAvailable: (prepaidBalance/ratePerUnit),
+        unitsAvailable: prepaidBalance / ratePerUnit,
         prepaidBalance,
       },
     });
@@ -360,7 +407,6 @@ app.post("/admin/addPlan", async (req, res) => {
   // })
 });
 
-
 app.post("/admin/addCustomer", async (req, res) => {
   const { customerName, customerMail, customerPhone } = req.body;
   let cust = new Customer(customerName, customerMail, customerPhone);
@@ -376,7 +422,7 @@ app.post("/admin/addCustomer", async (req, res) => {
     data: {
       customerId: cust.customerId,
       customerName: customerName,
-      customerCurrPlan:0,
+      customerCurrPlan: 0,
       customerMail: customerMail,
       customerPhone: customerPhone,
       customerType: "N/A",
@@ -399,39 +445,6 @@ app.post("/admin/addCustomer", async (req, res) => {
   // cl.printToEnd(cl_head)
   // cl.printToEnd(cl_head)
 });
-
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).send("Email and password are required.");
-  }
-
-  const customer = Object.values(customers).find(
-    (cust) => cust.email === email
-  );
-  if (!customer) {
-    return res.status(401).send("Invalid email or password.");
-  }
-
-  const passwordIsValid = bcrypt.compareSync(password, customer.password);
-  if (!passwordIsValid) {
-    return res.status(401).send("Invalid email or password.");
-  }
-
-  const token = jwt.sign({ id: customer.id }, SECRET_KEY, {
-    expiresIn: 86400, // 24 hours
-  });
-
-  res.send({
-    message: "Login successful.",
-    token: token,
-    customerId: customer.id,
-    name: customer.name,
-    email: customer.email,
-  });
-});
-
 
 
 app.get("/invoices", verifyToken, (req, res) => {

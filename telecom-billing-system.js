@@ -2,11 +2,12 @@
 import { LinkedList, Node } from "./LinkedList.js";
 
 class Customer {
-  constructor(customerName,customerMail,customerPhone) {
+  constructor(customerName,customerMail,customerPhone,customerPassword) {
     this.customerId = Math.floor(100000000 + Math.random() * 900000000);
     this.customerName = customerName
     this.customerMail = customerMail
     this.customerPhone = customerPhone
+    this.customerPassword = customerPassword
     this.customerType = null;
     this.customerCurrPlan = null;
     this.invoices = Array;

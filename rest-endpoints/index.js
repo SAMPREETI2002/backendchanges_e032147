@@ -432,6 +432,7 @@ app.post("/admin/addCustomer", async (req, res) => {
       customerCurrPlan: 0,
       customerMail: customerMail,
       customerPhone: customerPhone,
+      password:"admin"
       // invoiceList:{
       //     create: invoicesData
       // }

@@ -171,14 +171,42 @@ app.post("/buyPlan", async (req, res) => {
     if (planType === "PREPAID") {
       invoice.units = planInstance.unitsAvailable;
       // payment gateway integration to get prepaid balance
+      invoice = await prisma.invoice.create({
+        data: {
+          invoiceId:invoice.invoiceId,
+          customerName: customer.customerName,
+          customerId: customer.customerId,
+          planId: plan.planId,
+          units: invoice.units,
+          date: now,
+          amount: amount,
+          planType: planType,
+        },
+      });
     } else if (planType === "POSTPAID") {
       invoice.units = planInstance.unitsUsed;
+
+      invoice = await prisma.invoice.create({
+        data: {
+          invoiceId:invoice.invoiceId,
+          customerName: customer.customerName,
+          customerId: customer.customerId,
+          planId: plan.planId,
+          units: invoice.units,
+          date: now,
+          amount:0,
+          planType: planType,
+        },
+      });
     }
 
     await prisma.customer.update({
       where: { customerId: customerId },
-      data: { customerCurrPlan: plan.planId }, // Assuming 'plan.planId' is the unique identifier for the plan
+      data: { customerCurrPlan: plan.planId,
+              customerType:plan.planType
+       }, // Assuming 'plan.planId' is the unique identifier for the plan
     });
+
 
     res.status(201).json({ customer, plan, invoice });
   } catch (error) {

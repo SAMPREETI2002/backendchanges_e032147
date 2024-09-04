@@ -1,5 +1,3 @@
-Here's a README.md file with test JSON data for all the APIs in the included index.js file:
-
 ```markdown
 # Telecom Billing System API
 

@@ -100,6 +100,62 @@ app.post("/register", (req, res) => {
 //     })
 // })
 
+app.post("/generateInvoice", async (req, res) => {
+  const { customerId, amount, units, planId } = req.body;
+
+  try {
+    const customer = await prisma.customer.findUnique({
+      where: { customerId },
+    });
+
+    const plan = await prisma.plan.findUnique({
+      where: { planId },
+      include: {
+        prepaidPlans: true,
+        postpaidPlans: true,
+      },
+    });
+
+    if (!customer) {
+      return res.status(404).send("Customer not found.");
+    }
+
+    if (!planId) {
+      return res.status(400).send("Plan ID is required.");
+    }
+
+    let planType;
+    if (plan.prepaidPlans.length > 0) {
+      planType = "PREPAID";
+    } else if (plan.postpaidPlans.length > 0) {
+      planType = "POSTPAID";
+    } else {
+      return res.status(400).send("Invalid plan type.");
+    }
+
+    const date = new Date();
+    const invoice = new Invoice(customer.customerName, customer.customerId, plan, units, date, planType, amount);
+    const createdInvoice = await prisma.invoice.create({
+      data: {
+        invoiceId:invoice.invoiceId,
+        customerName: customer.customerName,
+        customerId,
+        planId: plan.planId,
+        units,
+        date,
+        amount,
+        planType
+      },
+    });
+
+    res.send({ message: "Invoice generated successfully.", invoice: createdInvoice });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal server error.");
+  }
+});
+
+
 app.post("/buyPlan", async (req, res) => {
   const { customerId, planName, planType } = req.body;
 
@@ -165,7 +221,8 @@ app.post("/buyPlan", async (req, res) => {
       customer.customerId,
       planInstance,
       0,
-      now.toDateString()
+      now.toDateString(),
+      planType
     );
 
     if (planType === "PREPAID") {
@@ -272,7 +329,6 @@ app.post("/admin/addPlan", async (req, res) => {
   // })
 });
 
-app.get("/admin/generateInvoice", async (req, res) => {});
 
 app.post("/admin/addCustomer", async (req, res) => {
   const { customerName, customerMail, customerPhone } = req.body;

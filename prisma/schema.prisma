@@ -15,6 +15,7 @@ datasource db {
 
 model Customer{
   customerId Int @id 
+  password String?
   customerName String
   customerCurrPlan Int
   customerMail String

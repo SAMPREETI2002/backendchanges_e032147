@@ -236,7 +236,7 @@ app.post("/buyPlan", async (req, res) => {
           planId: plan.planId,
           units: invoice.units,
           date: now,
-          amount: amount,
+          amount: invoice.units*planInstance.ratePerUnit,
           planType: planType,
         },
       });
@@ -401,30 +401,7 @@ app.post("/login", (req, res) => {
   });
 });
 
-app.post("/generateInvoice", verifyToken, (req, res) => {
-  const { amount, month, service } = req.body;
-  const customerId = req.customerId;
 
-  if (!customers[customerId]) {
-    return res.status(404).send("Customer not found.");
-  }
-
-  const invoice = {
-    invoiceId: uuidv4(),
-    amount: amount || Math.floor(Math.random() * 1000) + 50,
-    month: month || "August 2024",
-    service: service || "Pre-Paid",
-    paid: false,
-    dueDate: "2024-09-10",
-  };
-
-  customers[customerId].invoices.push(invoice);
-
-  res.status(201).send({
-    message: `Invoice generated for customer ${customerId}`,
-    invoice,
-  });
-});
 
 app.get("/invoices", verifyToken, (req, res) => {
   const customerId = req.customerId;

@@ -114,9 +114,10 @@ This API provides endpoints for registering customers, generating invoices, buyi
 - **Request Body**:
 ```json
 {
-  "planName": "Basic Plan",
-  "ratePerUnit": 0.1,
-  "planType": "POSTPAID",
+  "planName": "Basic Plan Prepaid",
+  "ratePerUnit": 0.5,
+  "planType": "PREPAID",
+  "prepaidBalance":0,
   "billingCycle": "Monthly"
 }
 ```
@@ -124,14 +125,15 @@ This API provides endpoints for registering customers, generating invoices, buyi
 ```json
 {
   "plan": {
-    "planId": "plan2",
-    "planName": "Basic Plan",
-    "ratePerUnit": 0.1
+    "planId": 349039462,
+    "planName": "Basic Plan Prepaid",
+    "ratePerUnit": 0.5
   },
-  "postpaidPlan": {
-    "planId": "plan2",
-    "unitsUsed": 0,
-    "billingCycle": "Monthly"
+  "prepaidPlan": {
+    "id": 1,
+    "planId": 349039462,
+    "unitsAvailable": 500,
+    "prepaidBalance": 0
   }
 }
 ```
@@ -150,8 +152,9 @@ This API provides endpoints for registering customers, generating invoices, buyi
 - **Response**:
 ```json
 {
-  "id": "customer2",
+  "id": 513679860,
   "name": "Jane Smith",
+  "plan": 0,
   "mail": "jane@example.com",
   "phone": "+1234567890",
   "type": "N/A"

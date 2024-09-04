@@ -101,13 +101,14 @@ app.post("/register", (req, res) => {
 // })
 
 app.post("/generateInvoice", async (req, res) => {
-  const { customerId, amount, units, planId } = req.body;
+  const { customerId } = req.body;
 
   try {
     const customer = await prisma.customer.findUnique({
       where: { customerId },
     });
-
+    const planId = customer.customerCurrPlan
+    console.log(planId)
     const plan = await prisma.plan.findUnique({
       where: { planId },
       include: {
@@ -125,28 +126,57 @@ app.post("/generateInvoice", async (req, res) => {
     }
 
     let planType;
+    let createdInvoice;
     if (plan.prepaidPlans.length > 0) {
       planType = "PREPAID";
+      const date = new Date();
+      const invoice = new Invoice(customer.customerName, customer.customerId, plan, plan.prepaidPlans[0].unitsAvailable, date, planType, plan.prepaidPlans[0].prepaidBalance);
+      createdInvoice = await prisma.invoice.create({
+        data: {
+          invoiceId:invoice.invoiceId,
+          customerName: customer.customerName,
+          customerId,
+          planId: plan.planId,
+          units:plan.prepaidPlans[0].unitsAvailable,
+          date,
+          amount:plan.prepaidPlans[0].prepaidBalance,
+          planType
+        },
+      });
     } else if (plan.postpaidPlans.length > 0) {
       planType = "POSTPAID";
+      const date = new Date();
+    const invoice = new Invoice(customer.customerName, customer.customerId, plan, plan.postpaidPlans[0].unitsUsed, date, planType, (plan.postpaidPlans[0].unitsUsed)*(plan.ratePerUnit));
+    createdInvoice = await prisma.invoice.create({
+        data: {
+          invoiceId:invoice.invoiceId,
+          customerName: customer.customerName,
+          customerId,
+          planId: plan.planId,
+          units:plan.postpaidPlans[0].unitsUsed,
+          date,
+          amount:(plan.postpaidPlans[0].unitsUsed)*(plan.ratePerUnit),
+          planType
+        },
+      });
     } else {
       return res.status(400).send("Invalid plan type.");
     }
 
-    const date = new Date();
-    const invoice = new Invoice(customer.customerName, customer.customerId, plan, units, date, planType, amount);
-    const createdInvoice = await prisma.invoice.create({
-      data: {
-        invoiceId:invoice.invoiceId,
-        customerName: customer.customerName,
-        customerId,
-        planId: plan.planId,
-        units,
-        date,
-        amount,
-        planType
-      },
-    });
+    // const date = new Date();
+    // const invoice = new Invoice(customer.customerName, customer.customerId, plan, units, date, planType, amount);
+    // const createdInvoice = await prisma.invoice.create({
+    //   data: {
+    //     invoiceId:invoice.invoiceId,
+    //     customerName: customer.customerName,
+    //     customerId,
+    //     planId: plan.planId,
+    //     units,
+    //     date,
+    //     amount,
+    //     planType
+    //   },
+    // });
 
     res.send({ message: "Invoice generated successfully.", invoice: createdInvoice });
   } catch (error) {
@@ -184,7 +214,7 @@ app.post("/buyPlan", async (req, res) => {
         planInstance = new PrepaidPlan(
           plan.planName,
           plan.ratePerUnit,
-          0,
+          plan.prepaidPlans[0].prepaidBalance,
           plan.prepaidPlans[0].unitsAvailable
         );
       }
@@ -227,6 +257,7 @@ app.post("/buyPlan", async (req, res) => {
 
     if (planType === "PREPAID") {
       invoice.units = planInstance.unitsAvailable;
+      console.log(planInstance.prepaidBalance)
       // payment gateway integration to get prepaid balance
       invoice = await prisma.invoice.create({
         data: {
@@ -236,7 +267,7 @@ app.post("/buyPlan", async (req, res) => {
           planId: plan.planId,
           units: invoice.units,
           date: now,
-          amount: invoice.units*planInstance.ratePerUnit,
+          amount: planInstance.prepaidBalance,
           planType: planType,
         },
       });
@@ -296,7 +327,7 @@ app.post("/admin/addPlan", async (req, res) => {
     const prepaidPlan = await prisma.prepaidPlan.create({
       data: {
         planId: plan.planId,
-        unitsAvailable: 500.0,
+        unitsAvailable: (prepaidBalance/ratePerUnit),
         prepaidBalance,
       },
     });

@@ -8,7 +8,6 @@ class Customer {
     this.customerMail = customerMail
     this.customerPhone = customerPhone
     this.customerPassword = customerPassword
-    this.customerType = null;
     this.customerCurrPlan = null;
     this.invoices = Array;
   }

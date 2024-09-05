@@ -439,15 +439,15 @@ app.post("/admin/addCustomer", async (req, res) => {
     },
   };
   await prisma.customer.create(dataobj);
-  res.send({
-    id: cust.customerId,
-    name: cust.customerName,
-    plan: 0,
-    mail: cust.customerMail,
-    phone: cust.customerPhone,
-    type: "N/A",
-    // invoiceList : cl_head.obj.invoiceList
-  });
+  // res.send({
+  //   id: cust.customerId,
+  //   name: cust.customerName,
+  //   plan: 0,
+  //   mail: cust.customerMail,
+  //   phone: cust.customerPhone,
+  //   // invoiceList : cl_head.obj.invoiceList
+  // });
+  res.status(201).json({cust})
   console.log(cust.customerName);
   // cl.printToEnd(cl_head)
   // cl.printToEnd(cl_head)

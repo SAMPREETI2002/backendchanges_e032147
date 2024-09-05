@@ -3,6 +3,8 @@ dotenv.config();
 import { PrismaClient } from "@prisma/client";
 // const {PrismaClient} = require("@prisma/client")
 const prisma = new PrismaClient();
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from './swaggerConfig.js'; 
 import express from "express";
 import bodyParser from "body-parser";
 import { v4 as uuidv4 } from "uuid";
@@ -19,7 +21,7 @@ import { LinkedList } from "../LinkedList.js";
 const app = express();
 const PORT = 9099;
 const SECRET_KEY = process.env.JWT_SECRET;
-
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(bodyParser.json());
 
 let customers = {};
@@ -61,6 +63,51 @@ function verifyToken(req, res, next) {
 }
 
 
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     summary: Register a new customer
+ *     tags: 
+ *       - Customers
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Doe
+ *               email:
+ *                 type: string
+ *                 example: johndoe@example.com
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *               phone:
+ *                 type: string
+ *                 example: 1234567890
+ *     responses:
+ *       201:
+ *         description: Customer registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 auth:
+ *                   type: boolean
+ *                   example: true
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         description: All fields are required
+ *       500:
+ *         description: There was a problem registering the user
+ */
 app.post('/register', async (req, res) => {
   const { name, email, password, phone } = req.body;
 
@@ -71,11 +118,11 @@ app.post('/register', async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 8);
 
   try {
-    let newCustomer = new Customer(name,email,phone,password)
+    let newCustomer = new Customer(name, email, phone, password);
     newCustomer = await prisma.customer.create({
       data: {
-        customerId:newCustomer.customerId,
-        customerCurrPlan:0,
+        customerId: newCustomer.customerId,
+        customerCurrPlan: 0,
         customerName: name,
         customerMail: email,
         customerPhone: phone,
@@ -97,40 +144,84 @@ app.post('/register', async (req, res) => {
 
 let loggedInCustomers = [];
 
+/**
+ * @swagger
+ * /login:
+ *   post:
+ *     summary: Log in a customer
+ *     tags: 
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: johndoe@example.com
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Customer logged in successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 auth:
+ *                   type: boolean
+ *                   example: true
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         description: Email and password are required
+ *       401:
+ *         description: Invalid password
+ *       404:
+ *         description: No user found
+ *       500:
+ *         description: There was a problem logging in
+ */
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  
+
   if (!email || !password) {
     return res.status(400).send('Email and password are required.');
   }
-  
+
   try {
     const customer = await prisma.customer.findFirst({
       where: { customerMail: email },
     });
-    
+
     if (!customer) {
       return res.status(404).send('No user found.');
     }
-    
+
     const passwordIsValid = bcrypt.compareSync(password, customer.password);
-    
+
     if (!passwordIsValid) {
       return res.status(401).send({ auth: false, token: null });
     }
-    
+
     const token = jwt.sign({ id: customer.customerId }, SECRET_KEY, {
       expiresIn: 86400, // 24 hours
     });
-    
+
     loggedInCustomers.push(customer.customerId);
-    
-    console.log(loggedInCustomers[0])
+
+    console.log(loggedInCustomers[0]);
     res.status(200).send({ auth: true, token });
   } catch (error) {
     res.status(500).send('There was a problem logging in.');
   }
 });
+
 
 
 // app.get('/viewInvoice',(req,res)=>{

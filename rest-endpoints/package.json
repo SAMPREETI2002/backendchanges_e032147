@@ -16,6 +16,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "rest-endpoints": "file:",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0"
   }
 }

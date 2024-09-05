@@ -141,11 +141,11 @@ app.post('/login', async (req, res) => {
 // })
 
 app.post("/generateInvoice", async (req, res) => {
-  const { customerId } = req.body;
+  const { customerMail } = req.body;
 
   try {
     const customer = await prisma.customer.findUnique({
-      where: { customerId },
+      where: { customerMail },
     });
     const planId = customer.customerCurrPlan;
     console.log(planId);
@@ -183,7 +183,7 @@ app.post("/generateInvoice", async (req, res) => {
         data: {
           invoiceId: invoice.invoiceId,
           customerName: customer.customerName,
-          customerId,
+          customerId:customer.customerId,
           planId: plan.planId,
           units: plan.prepaidPlans[0].unitsAvailable,
           date,
@@ -245,13 +245,13 @@ app.post("/generateInvoice", async (req, res) => {
 });
 
 app.post("/buyPlan", async (req, res) => {
-  const { customerId, planName, planType } = req.body;
+  const { customerMail, planName, planType } = req.body;
 
   let plan, planInstance;
   try {
     // Fetch the customer from the database
     const customer = await prisma.customer.findUnique({
-      where: { customerId: customerId },
+      where: { customerMail: customerMail},
     });
 
     if (!customer) {
@@ -346,7 +346,7 @@ app.post("/buyPlan", async (req, res) => {
     }
 
     await prisma.customer.update({
-      where: { customerId: customerId },
+      where: { customerMail: customerMail },
       data: { customerCurrPlan: plan.planId, customerType: plan.planType }, // Assuming 'plan.planId' is the unique identifier for the plan
     });
 
@@ -454,33 +454,27 @@ app.post("/admin/addCustomer", async (req, res) => {
 });
 
 
-app.get("/invoices", verifyToken, (req, res) => {
-  const customerId = req.customerId;
-
-  if (!customers[customerId]) {
-    return res.status(404).send("Customer not found.");
-  }
-
-  res.send(customers[customerId].invoices);
+app.get("/invoices",async (req, res) => {
+  const {customerMail} = req.body
+  const customer = await prisma.customer.findUnique({
+    where:{customerMail:customerMail}
+  })
+  let invoices = []
+  invoices = await prisma.invoice.findMany({
+    where:{customerId:customer.customerId}
+  })
+  res.send(invoices)
+  // console.log(invoices)
 });
 
-app.get("/invoices/:invoiceId", verifyToken, (req, res) => {
-  const { invoiceId } = req.params;
-  const customerId = req.customerId;
-
-  if (!customers[customerId]) {
-    return res.status(404).send("Customer not found.");
-  }
-
-  const invoice = customers[customerId].invoices.find(
-    (inv) => inv.invoiceId === invoiceId
-  );
-
-  if (!invoice) {
-    return res.status(404).send("Invoice not found.");
-  }
-
-  res.send(invoice);
+app.get("/invoices/:invoiceId", async (req, res) => {
+  let {invoiceId} = req.params
+  invoiceId = parseInt(invoiceId,10)
+  // const {customerMail} = req.body
+  let invoice_res = await prisma.invoice.findUnique({
+    where:{invoiceId:invoiceId}
+  })
+  res.send(invoice_res)
 });
 
 app.post("/payInvoice", verifyToken, (req, res) => {

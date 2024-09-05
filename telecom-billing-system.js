@@ -106,7 +106,7 @@ class Invoice {
     this.units = units;
     this.date = date;
     this.planType = planType;
-    this.amount = amount || this.calculateAmount();
+    this.amount = amount;
   }
 
   calculateAmount() {

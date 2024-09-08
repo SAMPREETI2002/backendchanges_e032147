@@ -1,37 +1,51 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-
+ 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+ 
 generator client {
   provider = "prisma-client-js"
 }
-
+ 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
-model Customer{
-  customerId Int @id 
-  password String?
-  customerName String
-  customerCurrPlan Int
-  customerMail String @unique
+ 
+model Customer {
+  customerId    Int          @id
+  password      String?
+  customerName  String
+  customerMail  String       @unique
   customerPhone String
-  invoiceList Invoice[]
+  customerCurrPlan Int
+  plansList     CustomerPlan[] // Reference to the join table
+  invoiceList   Invoice[]
 }
-
+ 
+ 
 model Plan {
-  planId       Int          @id 
-  planName     String
-  ratePerUnit  Float
-  prepaidPlans PrepaidPlan[]
+  planId        Int          @id
+  planName      String @unique
+  ratePerUnit   Float
+  prepaidPlans  PrepaidPlan[]
   postpaidPlans PostpaidPlan[]
-  invoices Invoice[]
+  invoices      Invoice[]
+  description String
+  customers     CustomerPlan[] // Reference to the join table
 }
-
+ 
+model CustomerPlan {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  planId      Int
+  customer    Customer  @relation(fields: [customerId], references: [customerId])
+  plan        Plan      @relation(fields: [planId], references: [planId])
+ 
+  @@unique([customerId, planId]) // Ensure unique customer-plan pairs
+}
+ 
 model PrepaidPlan {
   id             Int     @id @default(autoincrement())
   planId         Int
@@ -39,7 +53,7 @@ model PrepaidPlan {
   prepaidBalance Float
   plan           Plan    @relation(fields: [planId], references: [planId])
 }
-
+ 
 model PostpaidPlan {
   id          Int     @id @default(autoincrement())
   planId      Int
@@ -47,7 +61,7 @@ model PostpaidPlan {
   billingCycle String
   plan        Plan    @relation(fields: [planId], references: [planId])
 }
-
+ 
 model Invoice {
   invoiceId    Int       @id 
   customerName String
@@ -60,10 +74,8 @@ model Invoice {
   customer Customer @relation(fields:[customerId],references:[customerId])
   plan     Plan @relation(fields: [planId], references: [planId])
 }
-
+ 
 enum PlanType {
   PREPAID
   POSTPAID
 }
-
-

@@ -385,7 +385,7 @@ app.post("/admin/addPlan", async (req, res) => {
         planName,
         ratePerUnit,
         description,
-        planId : newPlan
+        planId : newPlan.planId
       },
     });
 
@@ -530,7 +530,7 @@ app.post("/generateInvoice", async (req, res) => {
         data: {
           invoiceId: invoice.invoiceId,
           customerName: customer.customerName,
-          customerId,
+          customerId:customer.customerId,
           planId: plan.planId,
           units: plan.postpaidPlans[0].unitsUsed,
           date,
@@ -671,126 +671,94 @@ app.post("/generateInvoice", async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-app.post("/buyPlan", async (req, res) => {
-  const { customerMail, planName, planType } = req.body;
 
-  let plan, planInstance;
+app.post("/buyPlan", async (req, res) => {
+  const { planId, userEmail } = req.body;
+
   try {
-    // Fetch the customer from the database
-    let customer = await prisma.customer.findUnique({
-      where: { customerMail: customerMail},
+    // Fetch the plan using planId
+    const plan = await prisma.plan.findUnique({
+      where: { planId },
+      include: {
+        prepaidPlans: true,
+        postpaidPlans: true
+      }
+    });
+
+    if (!plan) {
+      return res.status(404).json({ error: "Plan not found" });
+    }
+
+    let planType, ratePerUnit;
+
+    // Determine if it's a prepaid or postpaid plan
+    if (plan.prepaidPlans.length > 0) {
+      planType = 'PREPAID';
+      ratePerUnit = plan.prepaidPlans[0].prepaidBalance; // Assuming prepaidBalance is used for the amount
+    } else if (plan.postpaidPlans.length > 0) {
+      planType = 'POSTPAID';
+      ratePerUnit = plan.ratePerUnit; // Assuming ratePerUnit is used for the amount
+    } else {
+      return res.status(400).json({ error: "Plan type not recognized" });
+    }
+
+    // Fetch customer information based on userEmail
+    const customer = await prisma.customer.findUnique({
+      where: { customerMail: userEmail }
     });
 
     if (!customer) {
       return res.status(404).json({ error: "Customer not found" });
     }
-//  console.log(customer)
-    if (planType === "PREPAID") {
-      // Fetch the plan from the database
-      plan = await prisma.plan.findFirst({
-        where: { planName: planName },
-        include: {
-          prepaidPlans: true,
-          postpaidPlans: false,
-        },
-      });
 
-      if (plan && plan.prepaidPlans.length > 0) {
-        planInstance = new PrepaidPlan(
-          plan.planName,
-          plan.ratePerUnit,
-          plan.prepaidPlans[0].prepaidBalance,
-          plan.prepaidPlans[0].unitsAvailable
-        );
-      }
-    } else if (planType === "POSTPAID") {
-      // Fetch the plan from the database
-      // console.log("ASDASDASD");
-      plan = await prisma.plan.findFirst({
-        where: { planName: planName },
-        include: {
-          prepaidPlans: false,
-          postpaidPlans: true,
-        },
-      });
+    const customerId = customer.customerId;
+    const customerName = customer.customerName;
 
-      if (plan && plan.postpaidPlans.length > 0) {
-        planInstance = new PostpaidPlan(
-          plan.planName,
-          plan.ratePerUnit,
-          plan.postpaidPlans[0].billingCycle,
-          plan.postpaidPlans[0].unitsUsed
-        );
-      }
-    }
-    // console.log(planInstance.planName)
-    // console.log(JSON.stringify(planInstance))
-    if (!plan || !planInstance) {
-      return res.status(404).json({ error: "Plan not found" });
-    }
-
+    // Create an invoice using the custom class
     const now = new Date();
-    let invoice = new Invoice(
-      customer.customerName,
-      customer.customerId,
-      planInstance,
-      0,
-      now.toDateString(),
-      planType
+    const invoice = new Invoice(
+      customerName,
+      customerId,
+      plan,
+      0, // Default or calculated units based on your logic
+      now,
+      planType,
+      ratePerUnit // Amount based on the plan rate
     );
 
-    if (planType === "PREPAID") {
-      invoice.units = planInstance.unitsAvailable;
-      // console.log(planInstance.prepaidBalance);
-      // payment gateway integration to get prepaid balance
-      invoice = await prisma.invoice.create({
-        data: {
-          invoiceId: invoice.invoiceId,
-          customerName: customer.customerName,
-          customerId: customer.customerId,
-          planId: plan.planId,
-          units: invoice.units,
-          date: now,
-          amount: planInstance.prepaidBalance,
-          planType: planType,
-        },
-      });
-    } else if (planType === "POSTPAID") {
-      invoice.units = planInstance.unitsUsed;
-
-      invoice = await prisma.invoice.create({
-        data: {
-          invoiceId: invoice.invoiceId,
-          customerName: customer.customerName,
-          customerId: customer.customerId,
-          planId: plan.planId,
-          units: invoice.units,
-          date: now,
-          amount: 0,
-          planType: planType,
-        },
-      });
-    }
-    let newPlan = await prisma.plan.findFirst({
-      where:{
-        planName:planName
-      }
-    })
-    customer=await prisma.customer.update({
-      where: { customerMail: customerMail },
-      data: { customerCurrPlan: newPlan.planId, customerType: plan.planType }, // Assuming 'plan.planId' is the unique identifier for the plan
+    // Save the invoice to the database
+    const createdInvoice = await prisma.invoice.create({
+      data: {
+        invoiceId: invoice.invoiceId,
+        customerName: invoice.customerName,
+        customerId: invoice.customerId,
+        planId: plan.planId,
+        units: invoice.units,
+        amount: invoice.amount,
+        planType: invoice.planType,
+        date: invoice.date,
+      },
     });
-    console.log(newPlan.planId)
-    // customer = await prisma.customer.findUnique({
-    //   where:{customerMail}
-    // })
-    res.status(201).json({ customer, plan, invoice });
+
+    // Update customer's current plan
+    const updatedCustomer = await prisma.customer.update({
+      where: { customerMail: userEmail },
+      data: { customerCurrPlan: plan.planId },
+    });
+
+    let customer_Plan = await prisma.customerPlan.create({
+      data: {
+        customerId: customer.customerId,
+        planId:plan.planId,
+      },
+    });
+
+    res.status(201).json({ message: "Payment successful", invoice: createdInvoice ,customer_Plan});
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
 
 /**
  * @swagger
@@ -1192,6 +1160,45 @@ app.get("/postpaidPlans", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+app.post("/viewHistory", async (req, res) => {
+  const { customerMail } = req.body;
+ 
+  // Query to fetch a customer and their plansList
+  const customerWithPlans = await prisma.customer.findUnique({
+    where: { customerMail: customerMail }, // or use customerMail if that's your lookup field
+    include: {
+      plansList: true, // This includes the list of plans associated with the customer
+    },
+  });
+ 
+  if (!customerWithPlans) {
+    return res.status(404).json({ error: "Customer does not exist" });
+  }
+ 
+  // Accessing the plansList
+  const plansList = customerWithPlans.plansList;
+ 
+  if (plansList.length === 0) {
+    return res.status(200).json({ message: "Customer has no previous plans" });
+  }
+ 
+  // Now you can use `plansList` as needed
+  // console.log(plansList);
+  res.status(200).json({ customer: customerWithPlans, plansList });
+});
+
+app.post("/viewPlan",async (req,res)=>{
+ 
+  const {planId} = req.body
+  let plan = await prisma.plan.findUnique({
+    where:{
+      planId:planId
+    }
+  })
+ 
+  res.status(201).json({plan})
+})
 
 
 
